@@ -97,13 +97,29 @@ class AgentDecisionEngine:
             return
 
         # 4. PLAN -> ACT
-        if self.stage == "ACT":
+        if self.stage == "PLAN":
+            self.stage = "ACT"
             target_valve = self.target_valve_attempted
             valve_name = self.sim.valves[target_valve]["name"]
             
             self.add_log(f"{target_valve.upper()}_COMMAND_SENT", "INFO", "AGENT_ENGINE", f"Command sent to {valve_name} ({target_valve}).")
             self.add_timeline_step("ACT", f"Command sent to {valve_name} ({target_valve}). Awaiting actuator response.")
             
+            success = self.sim.command_valve(target_valve, "CLOSE")
+            if success:
+                self.stage = "VERIFY"
+                resp_ms = self.sim.valves[target_valve]["last_response_time_ms"]
+                self.add_log(f"{target_valve.upper()}_CONFIRMED_CLOSED", "SUCCESS", f"ACTUATOR_{target_valve.upper()}", f"{valve_name} response confirmed in {resp_ms}ms.")
+                self.add_timeline_step("ACT", f"{valve_name} activated successfully. Initiating verification.")
+            else:
+                self.stage = "ADAPT"
+                self.add_log(f"{target_valve.upper()}_RESPONSE_NOT_DETECTED", "CRITICAL", f"ACTUATOR_{target_valve.upper()}", f"{valve_name} response not detected (Actuator fault/timeout).")
+                self.add_timeline_step("ADAPT", f"{valve_name} response not detected. Replanning response.")
+            return
+
+        if self.stage == "ACT":
+            target_valve = self.target_valve_attempted
+            valve_name = self.sim.valves[target_valve]["name"]
             success = self.sim.command_valve(target_valve, "CLOSE")
             if success:
                 self.stage = "VERIFY"
