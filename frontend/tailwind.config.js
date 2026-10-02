@@ -7,23 +7,40 @@ export default {
   theme: {
     extend: {
       colors: {
-        aqua: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          200: '#bae6fd',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
-          950: '#082f49',
+        navy: {
+          DEFAULT: '#063B5C',
+          50: '#e6edf2',
+          100: '#ccdce5',
+          700: '#052f4a',
+          800: '#063B5C',
+          900: '#04273e',
+          950: '#021624',
         },
-        slate: {
-          850: '#151f32',
-          900: '#0f172a',
-          950: '#070d19',
+        aqua: {
+          DEFAULT: '#00A8C6',
+          50: '#e0f7fa',
+          100: '#b2ebf2',
+          400: '#26c6da',
+          500: '#00A8C6',
+          600: '#00839a',
+          700: '#006070',
+        },
+        freshGreen: {
+          DEFAULT: '#43A047',
+          50: '#e8f5e9',
+          100: '#c8e6c9',
+          400: '#66bb6a',
+          500: '#43A047',
+          600: '#2e7d32',
+          700: '#1b5e20',
+        },
+        surface: {
+          DEFAULT: '#F1F7F9',
+          card: '#FFFFFF',
+          border: '#DCE8ED',
+          darkBg: '#091A28',
+          darkCard: '#0E2436',
+          darkBorder: '#1A3952'
         }
       },
       fontFamily: {
@@ -31,14 +48,7 @@ export default {
         sans: ['"Inter"', 'system-ui', 'sans-serif'],
       },
       animation: {
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'flow': 'flowPulse 2s ease-in-out infinite',
-      },
-      keyframes: {
-        flowPulse: {
-          '0%, 100%': { opacity: '0.4', transform: 'scale(0.98)' },
-          '50%': { opacity: '1', transform: 'scale(1.02)' },
-        }
+        'pulse-slow': 'pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       }
     },
   },

@@ -1,124 +1,107 @@
 import React from 'react';
-import { Activity, Shield, AlertTriangle, RefreshCw, Cpu, Radio, Sparkles, UserCheck, Play } from 'lucide-react';
+import { Activity, Droplets, RefreshCw, Play, Pause, ShieldCheck, AlertTriangle, AlertOctagon, Info } from 'lucide-react';
 
-export default function Header({ status, onReset, onToggleOverride, onOpenPitchMode, onStepLoop }) {
-  const isEscalated = status?.agent_status === 'ESCALATED';
-  const isOverride = status?.agent_status === 'HUMAN_OVERRIDE';
-  const isLeak = status?.system_status?.includes('ANOMALY');
-
+export default function Header({
+  status,
+  isStreaming,
+  onToggleStream,
+  onReset,
+  onOpenRoadmap
+}) {
   const getStatusBadge = () => {
-    if (isEscalated) {
+    if (!status) return null;
+    const sysStatus = status.status;
+    if (sysStatus === 'CRITICAL') {
       return (
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-400 text-xs font-semibold tracking-wide uppercase animate-pulse">
-          <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-          <span>CRITICAL ESCALATION</span>
+        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-600 font-semibold text-xs tracking-wider animate-pulse">
+          <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+          🔴 CRITICAL ANOMALY
         </div>
       );
     }
-    if (isOverride) {
+    if (sysStatus === 'WARNING') {
       return (
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-semibold tracking-wide uppercase">
-          <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-          <span>MANUAL OVERRIDE ACTIVE</span>
-        </div>
-      );
-    }
-    if (isLeak) {
-      return (
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-sky-500/20 border border-sky-500/40 text-sky-300 text-xs font-semibold tracking-wide uppercase animate-pulse">
-          <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
-          <span>AUTONOMOUS CONTAINMENT</span>
+        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 font-semibold text-xs tracking-wider">
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+          🟡 SYSTEM WARNING
         </div>
       );
     }
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-semibold tracking-wide uppercase">
-        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-        <span>SYSTEM OPERATIONAL</span>
+      <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 font-semibold text-xs tracking-wider">
+        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+        🟢 SYSTEM NORMAL
       </div>
     );
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-[#0b1120]/90 backdrop-blur-md border-b border-slate-800/80 px-4 lg:px-8 py-3.5 transition-all">
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        
-        {/* Brand */}
-        <div className="flex items-center gap-3.5">
-          <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-sky-400 text-white shadow-lg shadow-cyan-500/20">
-            <Radio className="w-5 h-5 animate-pulse" />
-            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 border-2 border-[#0b1120] rounded-full"></span>
+    <header className="bg-[#063B5C] text-white shadow-md border-b border-[#04273e]">
+      <div className="bg-[#04273e] px-4 py-1 text-center text-xs font-medium text-cyan-200/90 flex items-center justify-center gap-2">
+        <span className="px-2 py-0.5 rounded bg-[#00A8C6]/20 text-[#00A8C6] font-bold text-[11px] uppercase tracking-wide">
+          PPT Architecture Prototype
+        </span>
+        <span>AquaAgent 2.0 • AI-Powered Decision Support Layer (Realistic Simulated IoT Telemetry)</span>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#00A8C6] to-[#43A047] flex items-center justify-center shadow-md">
+            <Droplets className="w-6 h-6 text-white" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-1.5">
-                Aqua<span className="text-cyan-400">Agent</span>
+                AquaAgent <span className="text-[#00A8C6] font-mono text-sm px-1.5 py-0.5 bg-white/10 rounded">2.0</span>
               </h1>
-              <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800/60">
-                v2.4 AI Closed-Loop
-              </span>
+              {getStatusBadge()}
             </div>
-            <p className="text-xs text-slate-400 font-medium">
-              Autonomous AI for Smarter Water Networks
+            <p className="text-xs text-slate-300 font-medium">
+              Smart Water Distribution & Conservation Management Platform
             </p>
           </div>
         </div>
 
-        {/* Center / Status */}
-        <div className="flex items-center gap-3">
-          {getStatusBadge()}
-          <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 border-l border-slate-800 pl-3">
-            <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Loop:</span>
-            <span className="font-mono text-cyan-300 font-semibold">{status?.current_stage || 'MONITORING'}</span>
-          </div>
-        </div>
-
-        {/* Action Controls */}
-        <div className="flex items-center flex-wrap gap-2">
-          
-          {/* Step Engine button */}
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button
-            onClick={onStepLoop}
-            title="Advance autonomous step manually"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700/80 border border-slate-700 text-xs font-medium text-slate-200 transition"
-          >
-            <Play className="w-3.5 h-3.5 text-cyan-400 fill-cyan-400" />
-            <span>Step AI</span>
-          </button>
-
-          {/* Guided Pitch Mode button */}
-          <button
-            onClick={onOpenPitchMode}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-cyan-600 to-sky-500 hover:from-cyan-500 hover:to-sky-400 text-white text-xs font-semibold shadow-md shadow-cyan-600/20 transition transform active:scale-95"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Pitch Demo Mode</span>
-          </button>
-
-          {/* Human Override Toggle */}
-          <button
-            onClick={() => onToggleOverride(!isOverride)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition ${
-              isOverride
-                ? 'bg-amber-500/20 border-amber-500/60 text-amber-300 hover:bg-amber-500/30'
-                : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-700/80'
+            onClick={onToggleStream}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition shadow-sm border ${
+              isStreaming
+                ? 'bg-slate-700/60 border-slate-600 text-slate-200 hover:bg-slate-600'
+                : 'bg-[#00A8C6] border-[#00A8C6] text-white hover:bg-[#00839a]'
             }`}
+            title={isStreaming ? 'Pause continuous simulation stream' : 'Resume continuous simulation stream'}
           >
-            <Shield className="w-3.5 h-3.5" />
-            <span>{isOverride ? 'Manual Control' : 'Human Override'}</span>
+            {isStreaming ? (
+              <>
+                <Pause className="w-3.5 h-3.5 text-amber-400" />
+                <span>Pause Stream</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-3.5 h-3.5 text-white" />
+                <span>Resume Stream</span>
+              </>
+            )}
           </button>
 
-          {/* Reset System */}
           <button
             onClick={onReset}
-            title="Reset system to default baseline"
-            className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-400 hover:text-slate-100 transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700/60 border border-slate-600 text-slate-200 hover:bg-slate-600 hover:text-white text-xs font-semibold transition shadow-sm"
+            title="Reset system telemetry to baseline normal"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="w-3.5 h-3.5 text-cyan-300" />
+            <span>Reset Baseline</span>
+          </button>
+
+          <button
+            onClick={onOpenRoadmap}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#00A8C6]/20 border border-[#00A8C6]/50 text-cyan-200 hover:bg-[#00A8C6]/30 text-xs font-semibold transition shadow-sm"
+          >
+            <Info className="w-3.5 h-3.5 text-[#00A8C6]" />
+            <span>Architecture Info</span>
           </button>
         </div>
-
       </div>
     </header>
   );

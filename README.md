@@ -1,115 +1,125 @@
-# AquaAgent
-## Autonomous AI Agent for Smart Water Leakage Detection & Response
-### Global Innovation Hackathon 2026 Submission Prototype
+# AquaAgent 2.0
+## AI-Powered Smart Water Distribution & Conservation System
+### Prototype Architecture & Implementation (Aligned with Final PPT Specifications)
 
 ---
 
-## 1. Core Problem
-Municipal water distribution networks globally lose **30% to 45% of treated drinking water** to physical pipeline bursts, fractures, and joint leaks.
-Traditional SCADA and smart meter systems follow a passive paradigm:
-```
-Sensor Anomaly -> Human Alert -> Dispatch Team -> Manual Inspection -> Physical Valve Turn
-(Average Latency: 45 to 60 Minutes | Massive Water Loss & Street Damage)
-```
+## 1. Project Overview
+**AquaAgent 2.0** is an AI-powered smart water distribution and conservation platform designed to monitor hydraulic telemetry, detect pipeline anomalies (such as ruptures, abnormal pressure surges, and reservoir depletion), and deliver prioritized, actionable decision support for operators in real time.
 
-## 2. Solution: AquaAgent Autonomous Closed Loop
-AquaAgent eliminates response latency through an **autonomous, self-healing closed loop**:
-```
-Sensors (Flow + Pressure + Valve Telemetry)
-    |
-    v
-[1. OBSERVE] Continuous telemetry ingestion across DMA pipeline zones
-    |
-    v
-[2. ANALYZE] Cross-sensor gradient correlation (eliminates false alarms)
-    |
-    v
-[3. PLAN] Safe Isolation Policy evaluation (P-04 / Policy Engine)
-    |
-    v
-[4. ACT] Wireless solenoid actuation command dispatched to Valve 1
-    |
-    v
-[5. VERIFY] Real-time hydraulic stabilization check (Flow & Pressure)
-    |
-    +---> If Successful -> [RESOLVED] (Incident closed & logged)
-    |
-    +---> If Actuator Jammed / Timeout -> [ADAPT & REPLAN]
-             |
-             v
-         Select Secondary Isolation Ring (Valve 2) -> ACT -> VERIFY
-             |
-             +---> If Successful -> [RESOLVED] (Auto-recovered after fault)
-             |
-             +---> If Dual Failure -> [RESPONSIBLE ESCALATION] -> Human Operator
-```
+> [!NOTE]
+> **Prototype Scope Notice:** This implementation delivers the **Current Software Prototype** featuring the React + Vite dashboard, Python + FastAPI backend, AquaAgent anomaly detection logic, and SQLite database storage. Physical IoT hardware (ESP32 microcontrollers, physical flow/pressure sensors, motorized smart valves, GIS leak mapping) are scheduled for future deployment phases.
 
 ---
 
-## 3. Technology Stack
+## 2. Architecture & Technology Stack
 
-- **Frontend**:
-  - React 18
-  - Vite 6
-  - Tailwind CSS
-  - Lucide React Icons
-  - Recharts (Real-time telemetry, baseline bands, comparison bar charts)
-  - Interactive SVG Pipeline Topology with animated flow particles
-
-- **Backend**:
-  - Python 3.12
-  - FastAPI
-  - Uvicorn (Asynchronous ASGI server)
-  - Pydantic v2 schemas
-  - Physics-correlated Sensor Simulation Engine (Flow, Pressure, Valve Conductance)
-  - Autonomous Agent Decision State Machine Kernel
+| Component | Technology | Description |
+| :--- | :--- | :--- |
+| **Frontend** | **React 18 + Vite + Tailwind CSS** | Professional Smart City control center dashboard with real-time KPI telemetry, Recharts historical analytics, alerts panel, and interactive testbench. |
+| **Backend** | **Python 3.12 + FastAPI + Uvicorn** | REST API handling telemetry ingestion, anomaly analysis, SQLite persistence, and simulation controls. |
+| **AI / Decision Layer** | **AquaAgent Anomaly Engine** | Multi-sensor cross-correlation rule heuristics that classify anomalies by severity (Normal, Low, Medium, High) and provide root-cause diagnoses & recommended actions. |
+| **Database** | **SQLite (`aquaagent.db`)** | Stores `water_readings` and `alerts` tables with complete historical logging and statistics calculation. |
+| **Telemetry Layer** | **Hydraulic Simulation Engine** | Realistic simulated sensor stream (Flow: 40–60 L/min, Pressure: 3.0–4.5 bar, Water Level: 60–85%) with natural noise and scenario injection. |
 
 ---
 
-## 4. How to Run Locally
+## 3. SQLite Database Schema
+
+### Table: `water_readings`
+- `id` (INTEGER PRIMARY KEY AUTOINCREMENT)
+- `timestamp` (TEXT)
+- `flow_rate` (REAL)
+- `pressure` (REAL)
+- `water_level` (REAL)
+- `created_at` (TIMESTAMP)
+
+### Table: `alerts`
+- `id` (INTEGER PRIMARY KEY AUTOINCREMENT)
+- `timestamp` (TEXT)
+- `alert_type` (TEXT)
+- `severity` (TEXT: `NORMAL`, `LOW`, `MEDIUM`, `HIGH`)
+- `message` (TEXT - Diagnosis / possible cause)
+- `recommended_action` (TEXT - Response advice)
+- `status` (TEXT: `ACTIVE`, `RESOLVED`)
+- `created_at` (TIMESTAMP)
+
+---
+
+## 4. FastAPI Backend Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/water-data` | Returns recent water readings from SQLite and current live reading |
+| `POST` | `/water-data` | Ingests water monitoring data, analyzes via AquaAgent, and logs alert to SQLite if abnormal |
+| `GET` | `/alerts` | Returns generated alerts from SQLite |
+| `POST` | `/alerts/{alert_id}/resolve` | Marks an alert as resolved in SQLite |
+| `POST` | `/analyze` | Direct AquaAgent decision-support analysis endpoint |
+| `GET` | `/system-status` | Returns system overview (Total water monitored, current flow, pressure, level, status) |
+| `GET` | `/statistics` | Returns aggregated metrics from SQLite (total water monitored, averages, peaks) |
+| `GET` | `/events` | Returns recent monitoring events with timestamps |
+| `POST` | `/simulation/normal` | Generates normal telemetry (Flow: ~48 L/min, Pressure: ~3.8 bar) |
+| `POST` | `/simulation/leak` | Simulates high-flow pipe rupture (Flow: 95 L/min, Pressure: 2.0 bar) |
+| `POST` | `/simulation/abnormal-pressure` | Simulates high-pressure surge (Flow: 20 L/min, Pressure: 5.6 bar) |
+| `POST` | `/simulation/depletion` | Simulates low reservoir storage (Level: 22%) |
+| `POST` | `/simulation/manual` | Dispatches custom manual sensor readings |
+| `POST` | `/simulation/reset` | Resets state and baseline in SQLite |
+| `POST` | `/simulation/toggle-stream` | Toggles live simulation stream on/off |
+
+---
+
+## 5. Decision Support Lifecycle
+
+```
+MONITOR ➔ DETECT ➔ ANALYZE ➔ PRIORITIZE ➔ ACT ➔ REPORT
+```
+
+1. **MONITOR**: Continuous ingestion of flow rate, pressure, and water level metrics.
+2. **DETECT**: Real-time evaluation against operating thresholds (Flow: 40–60 L/min, Pressure: 3.0–4.5 bar, Level: 60–85%).
+3. **ANALYZE**: Cross-sensor gradient correlation (e.g., flow spike + pressure collapse = pipe rupture).
+4. **PRIORITIZE**: Severity classification (`HIGH`, `MEDIUM`, `LOW`, `NORMAL`).
+5. **ACT**: Delivering precise operator recommendations (e.g., *"Inspect pipeline section for possible leakage and isolate suspect sector immediately"*).
+6. **REPORT**: Persistent logging of telemetry and alert items in SQLite.
+
+---
+
+## 6. How to Run Locally
 
 ### Prerequisites
-- Node.js (v18+)
 - Python 3.10+
+- Node.js 18+
 
-### Step 1: Start the FastAPI Backend
+### Step 1: Run the Backend
 ```bash
-cd backend
-python -m pip install fastapi uvicorn pydantic
+cd C:\Users\Asus\Desktop\AquaAgent\backend
 python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
-The backend will run at `http://127.0.0.1:8000` with interactive OpenAPI documentation at `http://127.0.0.1:8000/docs`.
+API Documentation will be available at: `http://127.0.0.1:8000/docs`
 
-### Step 2: Start the React Frontend
+### Step 2: Run the Frontend
 ```bash
-cd frontend
-npm install
+cd C:\Users\Asus\Desktop\AquaAgent\frontend
 npm run dev
 ```
-The frontend UI will be live at `http://localhost:5173`.
+Dashboard will be available at: `http://localhost:5173`
 
 ---
 
-## 5. Hackathon Demo Scenarios
+## 7. Complete Demo Scenario Execution (Step-by-Step)
 
-The **Demo Control Center** at the top of the dashboard provides 1-click test scenarios:
-
-1. **[ NORMAL ]**: Grid in equilibrium (Flow 42.4 L/min, Pressure 3.82 bar across Zones A, B, C, D).
-2. **[ SIMULATE LEAK ]**: Triggers a major pipe rupture in Zone B (Flow surges to ~82 L/min, Pressure plunges to ~1.9 bar). Agent detects and attempts Valve 1.
-3. **[ VALVE 1 FAILURE ]**: Simulates an actuator fault/timeout on primary Valve 1. Agent enters **ADAPT & REPLAN**, dynamically selecting secondary Valve 2.
-4. **[ ADAPT & RECOVER ]**: Valve 2 closes successfully, flow normalizes, verification passes, and incident is marked **RESOLVED**.
-5. **[ BOTH VALVES FAILED ]**: Simulates a catastrophic dual-actuator failure. Agent recognizes its operational boundary and safely triggers **HUMAN ESCALATION**.
-6. **[ RESET SYSTEM ]**: Restores baseline parameters and clears fault flags.
-
-### ⚡ 8-Step Pitch Demo Mode
-Click **Pitch Demo Mode** in the header to run an interactive 2-minute presenter wizard with adjustable speed (Fast, Normal, Detailed) and step-by-step narration.
-
----
-
-## 6. Hardware Integration Roadmap (ESP32 / LoRaWAN / Modbus)
-AquaAgent's simulation engine outputs standardized JSON payloads that match physical hardware deployments:
-- **Microcontroller**: ESP32-WROOM-32 with FreeRTOS
-- **Flow Sensor**: YF-S201 Hall-Effect turbine (0.5–30 L/min)
-- **Pressure Sensor**: DFRobot SEN0257 Piezoresistive Transducer (0–1.2 MPa)
-- **Actuators**: 12V DC Latching Brass Solenoid Valves with optocoupled current feedback
-- **Protocol**: MQTT / WebSocket / Modbus RTU telemetry ingest
+1. **STEP 1 (Normal State):** Click **[Generate Normal Data]**. Dashboard displays:
+   - Status: `🟢 SYSTEM NORMAL`
+   - Flow: `~48 L/min` (Normal: 40–60 L/min)
+   - Pressure: `~3.8 bar` (Normal: 3.0–4.5 bar)
+   - Water Level: `~75%`
+2. **STEP 2 (Leak Injection):** Click **[Simulate Leak]** (Flow: 95 L/min, Pressure: 2.0 bar).
+3. **STEP 3 (AquaAgent Analysis):** AquaAgent detects cross-sensor surge and pressure drop.
+4. **STEP 4 (Alert Display):** Dashboard displays:
+   - Status: `🔴 CRITICAL ANOMALY`
+   - Severity: `HIGH`
+   - Possible Cause: `Unusual flow-pressure pattern`
+   - Recommended Response: `Inspect pipeline section for possible leakage.`
+5. **STEP 5 (SQLite Storage):** Alert and reading are automatically saved to SQLite tables (`water_readings` & `alerts`).
+6. **STEP 6 (Dashboard & Charts Update):** Recharts graphs reflect the flow spike and pressure drop in real time.
+7. **STEP 7 (Recovery):** Click **[Resolve]** or **[Generate Normal Data]**. Dashboard returns to:
+   - Status: `🟢 SYSTEM NORMAL`

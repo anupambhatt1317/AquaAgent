@@ -1,78 +1,119 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
-import Navigation from './components/Navigation';
-import DashboardPage from './pages/DashboardPage';
-import LiveNetworkPage from './pages/LiveNetworkPage';
-import AIAgentPage from './pages/AIAgentPage';
-import IncidentsPage from './pages/IncidentsPage';
-import AnalyticsPage from './pages/AnalyticsPage';
-import SystemLogsPage from './pages/SystemLogsPage';
-import SettingsPage from './pages/SettingsPage';
-import AboutPage from './pages/AboutPage';
-import WhyAquaAgent from './components/WhyAquaAgent';
-import AgentExplainabilityModal from './components/AgentExplainabilityModal';
-import GuidedHackathonDemo from './components/GuidedHackathonDemo';
+import KpiCards from './components/KpiCards';
+import DemoControlCenter from './components/DemoControlCenter';
+import DecisionSupportPipeline from './components/DecisionSupportPipeline';
+import AlertsPanel from './components/AlertsPanel';
+import RecentEvents from './components/RecentEvents';
+import SensorCharts from './components/SensorCharts';
+import ArchitectureModal from './components/ArchitectureModal';
 import { api } from './services/api';
+import { CheckCircle, AlertOctagon, HelpCircle, ArrowRight, ShieldCheck } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
   const [status, setStatus] = useState(null);
   const [sensors, setSensors] = useState(null);
-  const [network, setNetwork] = useState(null);
-  const [agentState, setAgentState] = useState(null);
-  const [incidents, setIncidents] = useState([]);
-  const [logs, setLogs] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [statistics, setStatistics] = useState(null);
   const [activeScenario, setActiveScenario] = useState('NORMAL');
-  const [isExplainModalOpen, setIsExplainModalOpen] = useState(false);
-  const [isPitchDemoOpen, setIsPitchDemoOpen] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(true);
+  const [isRoadmapOpen, setIsRoadmapOpen] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [demoStep, setDemoStep] = useState(1);
 
-  // Data fetching loop
-  const refreshAllData = useCallback(async () => {
+  const refreshData = useCallback(async () => {
     try {
-      const [sysStatus, sensData, netData, agState, incData, logData] = await Promise.all([
+      const [sysStatus, waterData, alertsData, eventsData, statsData] = await Promise.all([
         api.getSystemStatus(),
-        api.getSensors(),
-        api.getNetwork(),
-        api.getAgentState(),
-        api.getIncidents(),
-        api.getLogs(),
+        api.getWaterData(30),
+        api.getAlerts(50),
+        api.getEvents(),
+        api.getStatistics()
       ]);
 
       setStatus(sysStatus);
-      setSensors(sensData);
-      setNetwork(netData);
-      setAgentState(agState);
-      setIncidents(incData);
-      setLogs(logData);
-      if (sysStatus.scenario) {
-        setActiveScenario(sysStatus.scenario);
+      setSensors(waterData);
+      setAlerts(alertsData.alerts || []);
+      setEvents(eventsData.events || []);
+      setStatistics(statsData);
+      setIsStreaming(sysStatus.is_streaming);
+      if (sysStatus.system_mode) {
+        setActiveScenario(sysStatus.system_mode);
       }
     } catch (err) {
-      console.warn('Telemetry polling error (backend starting up):', err);
+      console.warn('Telemetry polling error:', err);
     }
   }, []);
 
-  // Poll telemetry every 1.2 seconds
   useEffect(() => {
-    refreshAllData();
-    const interval = setInterval(refreshAllData, 1200);
+    refreshData();
+    const interval = setInterval(refreshData, 1500);
     return () => clearInterval(interval);
-  }, [refreshAllData]);
+  }, [refreshData]);
 
-  // Scenario Triggers
-  const handleTriggerScenario = async (scenarioId) => {
+  const handleGenerateNormal = async () => {
     setIsExecuting(true);
-    setActiveScenario(scenarioId);
     try {
-      if (scenarioId === 'NORMAL') await api.triggerNormal();
-      else if (scenarioId === 'LEAK') await api.triggerLeak();
-      else if (scenarioId === 'VALVE1_FAILURE') await api.triggerValve1Failure();
-      else if (scenarioId === 'ADAPT_RECOVER') await api.triggerAdaptRecover();
-      else if (scenarioId === 'BOTH_FAILED') await api.triggerBothValvesFailed();
-      await refreshAllData();
+      await api.setNormalScenario();
+      setActiveScenario('NORMAL');
+      setDemoStep(1);
+      await refreshData();
     } catch (err) {
-      console.error('Scenario error:', err);
+      console.error('Normal scenario error:', err);
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
+  const handleSimulateLeak = async () => {
+    setIsExecuting(true);
+    try {
+      await api.simulateLeak();
+      setActiveScenario('LEAK');
+      setDemoStep(4);
+      await refreshData();
+    } catch (err) {
+      console.error('Leak scenario error:', err);
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
+  const handleSimulateAbnormalPressure = async () => {
+    setIsExecuting(true);
+    try {
+      await api.simulateAbnormalPressure();
+      setActiveScenario('ABNORMAL_PRESSURE');
+      await refreshData();
+    } catch (err) {
+      console.error('Pressure scenario error:', err);
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
+  const handleSimulateDepletion = async () => {
+    setIsExecuting(true);
+    try {
+      await api.simulateDepletion();
+      setActiveScenario('DEPLETION');
+      await refreshData();
+    } catch (err) {
+      console.error('Depletion scenario error:', err);
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
+  const handleManualSubmit = async (data) => {
+    setIsExecuting(true);
+    try {
+      await api.submitManualReading(data);
+      setActiveScenario('MANUAL');
+      await refreshData();
+    } catch (err) {
+      console.error('Manual submit error:', err);
     } finally {
       setIsExecuting(false);
     }
@@ -83,7 +124,8 @@ export default function App() {
     try {
       await api.resetSimulation();
       setActiveScenario('NORMAL');
-      await refreshAllData();
+      setDemoStep(1);
+      await refreshData();
     } catch (err) {
       console.error('Reset error:', err);
     } finally {
@@ -91,168 +133,130 @@ export default function App() {
     }
   };
 
-  const handleStepAI = async () => {
-    setIsExecuting(true);
+  const handleToggleStream = async () => {
     try {
-      await api.stepSimulation();
-      await refreshAllData();
+      const nextState = !isStreaming;
+      await api.toggleStream(nextState);
+      setIsStreaming(nextState);
+      await refreshData();
     } catch (err) {
-      console.error('Step AI error:', err);
-    } finally {
-      setIsExecuting(false);
+      console.error('Toggle stream error:', err);
     }
   };
 
-  const handleToggleValve = async (valveId) => {
-    if (!network?.valves?.[valveId]) return;
-    const current = network.valves[valveId].status;
+  const handleResolveAlert = async (alertId) => {
     try {
-      if (current === 'OPEN') {
-        await api.closeValve(valveId);
-      } else {
-        await api.openValve(valveId);
-      }
-      await refreshAllData();
+      await api.resolveAlert(alertId);
+      await refreshData();
     } catch (err) {
-      console.error('Toggle valve error:', err);
-    }
-  };
-
-  const handleToggleOverride = async (enabled) => {
-    try {
-      await api.toggleOverride(enabled);
-      await refreshAllData();
-    } catch (err) {
-      console.error('Toggle override error:', err);
-    }
-  };
-
-  const handleReplan = async () => {
-    try {
-      await api.triggerReplan();
-      await refreshAllData();
-    } catch (err) {
-      console.error('Replan error:', err);
-    }
-  };
-
-  const handleVerify = async () => {
-    try {
-      await api.triggerVerify();
-      await refreshAllData();
-    } catch (err) {
-      console.error('Verify error:', err);
+      console.error('Resolve alert error:', err);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#0b1120] text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
-      
-      {/* Header */}
+    <div className="min-h-screen flex flex-col bg-[#F1F7F9] text-slate-800">
       <Header
         status={status}
+        isStreaming={isStreaming}
+        onToggleStream={handleToggleStream}
         onReset={handleReset}
-        onToggleOverride={handleToggleOverride}
-        onOpenPitchMode={() => setIsPitchDemoOpen(true)}
-        onStepLoop={handleStepAI}
+        onOpenRoadmap={() => setIsRoadmapOpen(true)}
       />
 
-      {/* Navigation */}
-      <Navigation
-        activeTab={activeTab}
-        onSelectTab={setActiveTab}
-        incidentCount={status?.active_incidents_count || 0}
-      />
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+        <KpiCards status={status} sensors={sensors} />
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
-        {activeTab === 'dashboard' && (
-          <DashboardPage
-            status={status}
-            sensors={sensors}
-            network={network}
-            agentState={agentState}
-            activeScenario={activeScenario}
-            onTriggerScenario={handleTriggerScenario}
-            onReset={handleReset}
-            onStepAI={handleStepAI}
-            onToggleValve={handleToggleValve}
-            onOpenExplain={() => setIsExplainModalOpen(true)}
-            onReplan={handleReplan}
-            onVerify={handleVerify}
-          />
-        )}
+        <DemoControlCenter
+          activeScenario={activeScenario}
+          onGenerateNormal={handleGenerateNormal}
+          onSimulateLeak={handleSimulateLeak}
+          onSimulateAbnormalPressure={handleSimulateAbnormalPressure}
+          onSimulateDepletion={handleSimulateDepletion}
+          onReset={handleReset}
+          onSubmitManual={handleManualSubmit}
+          isExecuting={isExecuting}
+        />
 
-        {activeTab === 'network' && (
-          <LiveNetworkPage
-            network={network}
-            sensors={sensors}
-            onToggleValve={handleToggleValve}
-            status={status}
-          />
-        )}
+        <DecisionSupportPipeline
+          status={status}
+          activeAlert={alerts.find(a => a.status === 'ACTIVE')}
+        />
 
-        {activeTab === 'agent' && (
-          <AIAgentPage
-            agentState={agentState}
-            onOpenExplain={() => setIsExplainModalOpen(true)}
-            onReplan={handleReplan}
-            onVerify={handleVerify}
-            onStepAI={handleStepAI}
-          />
-        )}
-
-        {activeTab === 'incidents' && (
-          <IncidentsPage incidents={incidents} />
-        )}
-
-        {activeTab === 'analytics' && (
-          <AnalyticsPage status={status} sensors={sensors} />
-        )}
-
-        {activeTab === 'logs' && (
-          <SystemLogsPage logs={logs} />
-        )}
-
-        {activeTab === 'why' && (
-          <div className="space-y-6">
-            <WhyAquaAgent />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-7">
+            <AlertsPanel
+              alerts={alerts}
+              onResolveAlert={handleResolveAlert}
+            />
           </div>
-        )}
+          <div className="lg:col-span-5">
+            <RecentEvents
+              events={events}
+            />
+          </div>
+        </div>
 
-        {activeTab === 'settings' && (
-          <SettingsPage
-            status={status}
-            onToggleOverride={handleToggleOverride}
-          />
-        )}
+        <SensorCharts
+          sensors={sensors}
+          history={sensors?.history}
+        />
 
-        {activeTab === 'about' && (
-          <AboutPage />
-        )}
+        <div className="bg-white rounded-xl shadow-sm border border-[#DCE8ED] p-5">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-[#e0f7fa] text-[#00A8C6] flex items-center justify-center font-bold">
+                <HelpCircle className="w-4 h-4" />
+              </div>
+              <h3 className="text-sm font-bold text-[#063B5C]">
+                Final PPT Demonstration Scenario Walkthrough
+              </h3>
+            </div>
+            <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+              End-to-End Verified
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+              <span className="font-bold text-[#063B5C] block mb-1">
+                1. Baseline Normal State
+              </span>
+              <p className="text-slate-600">
+                Click <strong>[Generate Normal Data]</strong>. Flow stabilizes at ~48 L/min, Pressure at ~3.8 bar. System status shows 🟢 SYSTEM NORMAL.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-lg bg-red-50/50 border border-red-200">
+              <span className="font-bold text-red-900 block mb-1">
+                2. Leak Anomaly Injection
+              </span>
+              <p className="text-slate-700">
+                Click <strong>[Simulate Leak]</strong> (Flow: 95 L/min, Pressure: 2.0 bar). AquaAgent detects cross-sensor surge & pressure collapse, raising 🔴 CRITICAL ANOMALY with recommended response: <em>"Inspect pipeline section for possible leakage."</em>
+              </p>
+            </div>
+
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+              <span className="font-bold text-[#063B5C] block mb-1">
+                3. Closed-Loop Recovery
+              </span>
+              <p className="text-slate-600">
+                Alert is recorded in SQLite database. Clicking <strong>[Resolve]</strong> or <strong>[Generate Normal Data]</strong> restores status back to 🟢 SYSTEM NORMAL.
+              </p>
+            </div>
+          </div>
+        </div>
+
       </main>
 
-      {/* Explainability Drawer/Modal */}
-      <AgentExplainabilityModal
-        isOpen={isExplainModalOpen}
-        onClose={() => setIsExplainModalOpen(false)}
-        explanation={agentState?.active_decision_explanation}
-        agentState={agentState}
-        sensors={sensors}
+      <ArchitectureModal
+        isOpen={isRoadmapOpen}
+        onClose={() => setIsRoadmapOpen(false)}
       />
 
-      {/* 8-Step Guided Hackathon Presentation Mode */}
-      <GuidedHackathonDemo
-        isOpen={isPitchDemoOpen}
-        onClose={() => setIsPitchDemoOpen(false)}
-        onRefreshData={refreshAllData}
-      />
-
-      {/* Footer */}
-      <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500 font-mono">
+      <footer className="border-t border-[#DCE8ED] bg-white py-4 px-6 text-center text-xs text-slate-500 font-medium">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>AquaAgent v2.4 • Autonomous Water Intelligence Platform</span>
-          <span className="text-cyan-400 font-semibold">Global Innovation Hackathon 2026 Submission</span>
+          <span>AquaAgent 2.0 • AI-Powered Smart Water Distribution & Conservation System</span>
+          <span className="text-[#00A8C6] font-semibold">FastAPI + React + SQLite Prototype Architecture</span>
         </div>
       </footer>
 

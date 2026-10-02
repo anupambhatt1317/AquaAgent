@@ -29,6 +29,8 @@ Thumbs.db
 
 # Database data
 backend/data/*.json
+*.db
+*.sqlite3
 
 # Python / Virtualenv
 __pycache__/

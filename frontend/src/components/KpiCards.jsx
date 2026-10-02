@@ -1,121 +1,163 @@
 import React from 'react';
-import { Droplet, Gauge, MapPin, ShieldCheck, AlertCircle, Cpu, TrendingUp, TrendingDown } from 'lucide-react';
+import { Droplet, Gauge, Activity, Waves, Clock, CheckCircle2, AlertTriangle, AlertOctagon } from 'lucide-react';
 
 export default function KpiCards({ status, sensors }) {
-  const flow = sensors?.current?.flow_rate ?? status?.current_flow_rate ?? 42.4;
-  const pressure = sensors?.current?.pressure ?? status?.current_pressure ?? 3.82;
-  const waterSaved = status?.water_saved_liters ?? 1248;
-  const activeIncidents = status?.active_incidents_count ?? 0;
-  const agentStatus = status?.agent_status ?? 'AUTONOMOUS';
-  const isLeak = flow > 55.0 || pressure < 3.0;
+  const current = sensors?.current || {};
+  const flow = current.flow_rate ?? (status?.current_flow_rate ?? 48.0);
+  const pressure = current.pressure ?? (status?.current_pressure ?? 3.8);
+  const waterLevel = current.water_level ?? (status?.current_water_level ?? 75.0);
+  const totalWater = status?.total_water_monitored ? Number(status.total_water_monitored).toLocaleString() : '125,480';
+  const usageToday = status?.water_usage ? Number(status.water_usage).toLocaleString() : '34,200';
+  const timestamp = current.timestamp || status?.timestamp || '--:--:--';
+  const sysStatus = status?.status || 'NORMAL';
 
-  const cards = [
-    {
-      title: 'Current Flow Rate',
-      value: `${flow.toFixed(1)} L/min`,
-      subtext: isLeak ? 'Anomaly detected (+82%)' : 'Nominal band (40–45 L/min)',
-      icon: Droplet,
-      isAlert: isLeak,
-      badgeColor: isLeak ? 'text-rose-400 bg-rose-500/10 border-rose-500/30' : 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30',
-      trendIcon: isLeak ? TrendingUp : null,
-      trendText: isLeak ? '+38 L/min surge' : 'Stable flow'
-    },
-    {
-      title: 'Pipeline Pressure',
-      value: `${pressure.toFixed(2)} bar`,
-      subtext: isLeak ? 'Severe drop (-41%)' : 'Nominal band (3.5–4.0 bar)',
-      icon: Gauge,
-      isAlert: isLeak,
-      badgeColor: isLeak ? 'text-rose-400 bg-rose-500/10 border-rose-500/30' : 'text-sky-400 bg-sky-500/10 border-sky-500/30',
-      trendIcon: isLeak ? TrendingDown : null,
-      trendText: isLeak ? '-1.9 bar drop' : 'Optimal head'
-    },
-    {
-      title: 'Active Zones',
-      value: status?.active_zones_count || '4 / 4',
-      subtext: 'Hydraulic grid topology online',
-      icon: MapPin,
-      badgeColor: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30',
-      trendText: 'Zones A, B, C, D'
-    },
-    {
-      title: 'Water Saved',
-      value: `${Math.round(waterSaved).toLocaleString()} L`,
-      subtext: 'Simulation estimate vs manual',
-      icon: ShieldCheck,
-      badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
-      trendText: 'Fast containment'
-    },
-    {
-      title: 'Active Incidents',
-      value: `${activeIncidents}`,
-      subtext: activeIncidents > 0 ? 'Zone B Isolation active' : 'Zero uncontained breaches',
-      icon: AlertCircle,
-      isAlert: activeIncidents > 0,
-      badgeColor: activeIncidents > 0 ? 'text-amber-400 bg-amber-500/10 border-amber-500/30' : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
-      trendText: activeIncidents > 0 ? 'Action in progress' : 'All clear'
-    },
-    {
-      title: 'Agent Status',
-      value: agentStatus,
-      subtext: status?.current_stage ? `Stage: ${status.current_stage}` : 'Autonomous closed-loop',
-      icon: Cpu,
-      badgeColor: agentStatus === 'ESCALATED' 
-        ? 'text-rose-400 bg-rose-500/10 border-rose-500/30' 
-        : agentStatus === 'HUMAN_OVERRIDE'
-        ? 'text-amber-400 bg-amber-500/10 border-amber-500/30'
-        : 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30',
-      trendText: 'AI Core v2.4'
-    }
-  ];
+  const isFlowNormal = flow >= 40.0 && flow <= 60.0;
+  const isFlowHigh = flow > 60.0;
+  
+  const isPressureNormal = pressure >= 3.0 && pressure <= 4.5;
+  const isPressureLow = pressure < 3.0;
+
+  const isLevelNormal = waterLevel >= 60.0 && waterLevel <= 85.0;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
-      {cards.map((card, idx) => {
-        const Icon = card.icon;
-        const TrendIcon = card.trendIcon;
-        return (
-          <div
-            key={idx}
-            className={`glass-panel rounded-xl p-4 transition-all duration-200 relative overflow-hidden flex flex-col justify-between ${
-              card.isAlert ? 'border-rose-500/40 bg-rose-950/10 glow-rose' : ''
-            }`}
-          >
-            {/* Top row */}
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-[11px] font-medium text-slate-400 tracking-wide uppercase">
-                {card.title}
-              </span>
-              <div className={`p-1.5 rounded-lg border ${card.badgeColor}`}>
-                <Icon className="w-3.5 h-3.5" />
-              </div>
-            </div>
-
-            {/* Main Metric */}
-            <div className="my-1">
-              <div className="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight flex items-baseline gap-1.5">
-                {card.value}
-              </div>
-            </div>
-
-            {/* Bottom context / subtext */}
-            <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
-              <span className="truncate pr-1">{card.subtext}</span>
-              {card.trendText && (
-                <span className={`font-mono font-medium flex items-center gap-0.5 whitespace-nowrap ${
-                  card.isAlert ? 'text-rose-400' : 'text-cyan-400'
-                }`}>
-                  {TrendIcon && <TrendIcon className="w-2.5 h-2.5" />}
-                  {card.trendText}
-                </span>
-              )}
-            </div>
-
-            {/* Subtle glow accent */}
-            <div className="absolute top-0 right-0 w-16 h-16 bg-cyan-500/5 rounded-full blur-xl pointer-events-none"></div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* 1. Total Water Monitored */}
+      <div className="bg-white rounded-xl p-4 shadow-sm border border-[#DCE8ED] hover:shadow-md transition-shadow relative overflow-hidden">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Monitored</span>
+          <div className="w-8 h-8 rounded-lg bg-[#e0f7fa] flex items-center justify-center text-[#00A8C6]">
+            <Droplet className="w-4 h-4" />
           </div>
-        );
-      })}
+        </div>
+        <div className="mt-2 flex items-baseline gap-1">
+          <span className="text-2xl font-bold font-mono text-[#063B5C]">{totalWater}</span>
+          <span className="text-xs font-semibold text-slate-500">Liters</span>
+        </div>
+        <div className="mt-2 flex items-center justify-between text-xs text-slate-500 border-t border-slate-100 pt-2">
+          <span>Today's Usage:</span>
+          <span className="font-semibold text-slate-700 font-mono">{usageToday} L</span>
+        </div>
+      </div>
+
+      {/* 2. Current Flow Rate */}
+      <div className={`bg-white rounded-xl p-4 shadow-sm border transition-all ${
+        isFlowNormal 
+          ? 'border-[#DCE8ED]' 
+          : isFlowHigh 
+            ? 'border-red-300 bg-red-50/30' 
+            : 'border-amber-300 bg-amber-50/30'
+      }`}>
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Current Flow Rate</span>
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+            isFlowNormal ? 'bg-[#e8f5e9] text-[#43A047]' : isFlowHigh ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'
+          }`}>
+            <Activity className="w-4 h-4" />
+          </div>
+        </div>
+        <div className="mt-2 flex items-baseline gap-1.5">
+          <span className={`text-2xl font-bold font-mono ${
+            isFlowNormal ? 'text-[#063B5C]' : isFlowHigh ? 'text-red-600 font-black' : 'text-amber-600 font-black'
+          }`}>
+            {flow.toFixed(1)}
+          </span>
+          <span className="text-xs font-semibold text-slate-500">L/min</span>
+        </div>
+        <div className="mt-2 flex items-center justify-between text-xs border-t border-slate-100 pt-2">
+          <span className="text-slate-500">Normal Range:</span>
+          <span className={`font-medium ${isFlowNormal ? 'text-emerald-600' : 'text-red-600 font-semibold'}`}>
+            40 – 60 L/min
+          </span>
+        </div>
+      </div>
+
+      {/* 3. Current Pressure */}
+      <div className={`bg-white rounded-xl p-4 shadow-sm border transition-all ${
+        isPressureNormal 
+          ? 'border-[#DCE8ED]' 
+          : isPressureLow 
+            ? 'border-red-300 bg-red-50/30' 
+            : 'border-amber-300 bg-amber-50/30'
+      }`}>
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Current Pressure</span>
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+            isPressureNormal ? 'bg-[#e0f7fa] text-[#00A8C6]' : isPressureLow ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'
+          }`}>
+            <Gauge className="w-4 h-4" />
+          </div>
+        </div>
+        <div className="mt-2 flex items-baseline gap-1.5">
+          <span className={`text-2xl font-bold font-mono ${
+            isPressureNormal ? 'text-[#063B5C]' : isPressureLow ? 'text-red-600 font-black' : 'text-amber-600 font-black'
+          }`}>
+            {pressure.toFixed(2)}
+          </span>
+          <span className="text-xs font-semibold text-slate-500">bar</span>
+        </div>
+        <div className="mt-2 flex items-center justify-between text-xs border-t border-slate-100 pt-2">
+          <span className="text-slate-500">Normal Range:</span>
+          <span className={`font-medium ${isPressureNormal ? 'text-emerald-600' : 'text-red-600 font-semibold'}`}>
+            3.0 – 4.5 bar
+          </span>
+        </div>
+      </div>
+
+      {/* 4. Current Water Level */}
+      <div className={`bg-white rounded-xl p-4 shadow-sm border transition-all ${
+        isLevelNormal ? 'border-[#DCE8ED]' : 'border-amber-300 bg-amber-50/30'
+      }`}>
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Water Level</span>
+          <div className="w-8 h-8 rounded-lg bg-[#e0f7fa] flex items-center justify-center text-[#00A8C6]">
+            <Waves className="w-4 h-4" />
+          </div>
+        </div>
+        <div className="mt-2 flex items-baseline gap-1.5">
+          <span className="text-2xl font-bold font-mono text-[#063B5C]">{waterLevel.toFixed(1)}</span>
+          <span className="text-xs font-semibold text-slate-500">%</span>
+        </div>
+        <div className="mt-2 flex items-center justify-between text-xs border-t border-slate-100 pt-2">
+          <span className="text-slate-500">Operating Range:</span>
+          <span className="font-medium text-emerald-600">60 – 85%</span>
+        </div>
+      </div>
+
+      {/* 5. System Status Indicator */}
+      <div className={`rounded-xl p-4 shadow-sm border transition-all ${
+        sysStatus === 'CRITICAL'
+          ? 'bg-red-600 text-white border-red-700 shadow-red-200'
+          : sysStatus === 'WARNING'
+            ? 'bg-amber-500 text-white border-amber-600'
+            : 'bg-gradient-to-br from-[#063B5C] to-[#04273e] text-white border-[#063B5C]'
+      }`}>
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wider text-cyan-200">System Status</span>
+          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+            {sysStatus === 'CRITICAL' ? (
+              <AlertOctagon className="w-4 h-4 text-white animate-bounce" />
+            ) : sysStatus === 'WARNING' ? (
+              <AlertTriangle className="w-4 h-4 text-white" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+            )}
+          </div>
+        </div>
+        <div className="mt-2">
+          <span className="text-lg font-bold font-sans tracking-wide">
+            {sysStatus === 'CRITICAL' ? '🔴 CRITICAL ANOMALY' : sysStatus === 'WARNING' ? '🟡 WARNING' : '🟢 SYSTEM NORMAL'}
+          </span>
+        </div>
+        <div className="mt-2 flex items-center justify-between text-[11px] text-slate-200/90 border-t border-white/10 pt-2">
+          <span className="flex items-center gap-1 font-mono">
+            <Clock className="w-3 h-3 text-cyan-300" />
+            {timestamp}
+          </span>
+          <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] font-semibold uppercase">
+            {status?.system_mode || 'SIMULATED'}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

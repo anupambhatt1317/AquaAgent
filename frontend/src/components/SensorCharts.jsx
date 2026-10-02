@@ -1,25 +1,32 @@
 import React from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceArea } from 'recharts';
-import { Activity, Gauge, Droplet, Clock } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ReferenceLine,
+  Legend
+} from 'recharts';
+import { Activity, Gauge, Droplet } from 'lucide-react';
 
-export default function SensorCharts({ sensors }) {
-  const history = sensors?.history || [];
-  const currentFlow = sensors?.current?.flow_rate ?? 42.4;
-  const currentPressure = sensors?.current?.pressure ?? 3.82;
+export default function SensorCharts({ sensors, history }) {
+  const chartData = (history && history.length > 0) ? history : (sensors?.history || []);
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-[#0b1120] border border-cyan-500/30 p-2.5 rounded-xl shadow-xl text-xs font-mono">
-          <div className="text-slate-400 mb-1 flex items-center gap-1">
-            <Clock className="w-3 h-3 text-cyan-400" />
-            <span>Time: {label}</span>
-          </div>
-          {payload.map((entry, idx) => (
-            <div key={idx} className="flex items-center justify-between gap-4 font-semibold" style={{ color: entry.color }}>
+        <div className="bg-[#063B5C] text-white p-2.5 rounded-lg shadow-lg border border-[#00A8C6]/40 text-xs font-mono">
+          <p className="font-bold text-cyan-200 border-b border-white/20 pb-1 mb-1">{`Time: ${label}`}</p>
+          {payload.map((entry, index) => (
+            <p key={`item-${index}`} style={{ color: entry.color }} className="flex justify-between gap-3">
               <span>{entry.name}:</span>
-              <span>{typeof entry.value === 'number' ? entry.value.toFixed(2) : entry.value}</span>
-            </div>
+              <span className="font-bold">{entry.value}</span>
+            </p>
           ))}
         </div>
       );
@@ -28,138 +35,147 @@ export default function SensorCharts({ sensors }) {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      
-      {/* 1. Flow Rate Chart */}
-      <div className="glass-panel rounded-2xl p-5 border border-cyan-500/20 bg-[#0d1627]/90 shadow-xl">
-        <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-800">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Chart 1: Water-Flow History Chart */}
+      <div className="bg-white rounded-xl shadow-sm border border-[#DCE8ED] p-5">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
-              <Droplet className="w-4 h-4" />
+            <div className="w-7 h-7 rounded-lg bg-[#e8f5e9] text-[#43A047] flex items-center justify-center font-bold">
+              <Activity className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white tracking-tight">
-                Flow Rate vs Time
-              </h3>
-              <p className="text-[11px] text-slate-400">
-                Safe Baseline: 40.0 – 45.0 L/min
-              </p>
+              <h3 className="text-sm font-bold text-[#063B5C]">Water Flow Rate History</h3>
+              <p className="text-[11px] text-slate-500">Real-time L/min flow trend (Normal Range: 40–60 L/min)</p>
             </div>
           </div>
-
-          <div className="text-right font-mono">
-            <div className="text-lg font-bold text-cyan-300">
-              {currentFlow.toFixed(1)} <span className="text-xs text-slate-400">L/min</span>
-            </div>
-            <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
-              currentFlow > 55 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' : 'bg-cyan-950 text-cyan-400'
-            }`}>
-              {currentFlow > 55 ? 'SURGE ANOMALY' : 'NORMAL RANGE'}
-            </span>
-          </div>
+          <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+            L/min
+          </span>
         </div>
 
-        <div className="h-56 w-full">
+        <div className="h-64 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.6} />
-              <XAxis dataKey="timestamp" stroke="#64748b" tick={{ fontSize: 10 }} />
-              <YAxis domain={[20, 110]} stroke="#64748b" tick={{ fontSize: 10 }} />
+            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="flowGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#00A8C6" stopOpacity={0.4} />
+                  <stop offset="95%" stopColor="#00A8C6" stopOpacity={0.0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F7F9" vertical={false} />
+              <XAxis dataKey="timestamp" stroke="#94a3b8" fontSize={10} tickLine={false} />
+              <YAxis domain={[0, 120]} stroke="#94a3b8" fontSize={10} tickLine={false} />
               <Tooltip content={<CustomTooltip />} />
-              
-              {/* Baseline Safe Green Band */}
-              <ReferenceArea y1={40} y2={45} fill="#10b981" fillOpacity={0.08} stroke="#10b981" strokeOpacity={0.2} strokeDasharray="2 2" />
-
-              <Line
+              <ReferenceLine y={60} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Max (60 L/m)', fill: '#ef4444', fontSize: 10, position: 'insideTopRight' }} />
+              <ReferenceLine y={40} stroke="#43A047" strokeDasharray="3 3" label={{ value: 'Min (40 L/m)', fill: '#43A047', fontSize: 10, position: 'insideBottomRight' }} />
+              <Area
                 type="monotone"
                 dataKey="flow_rate"
                 name="Flow Rate (L/min)"
-                stroke="#38bdf8"
+                stroke="#00A8C6"
                 strokeWidth={2.5}
-                dot={false}
-                activeDot={{ r: 5, fill: '#38bdf8' }}
+                fillOpacity={1}
+                fill="url(#flowGradient)"
                 isAnimationActive={false}
               />
-              <Line
-                type="monotone"
-                dataKey="zone_b_flow"
-                name="Zone B Local Flow"
-                stroke="#818cf8"
-                strokeWidth={1.5}
-                strokeDasharray="4 4"
-                dot={false}
-                isAnimationActive={false}
-              />
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* 2. Pressure Chart */}
-      <div className="glass-panel rounded-2xl p-5 border border-cyan-500/20 bg-[#0d1627]/90 shadow-xl">
-        <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-800">
+      {/* Chart 2: Pressure History Chart */}
+      <div className="bg-white rounded-xl shadow-sm border border-[#DCE8ED] p-5">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-400">
+            <div className="w-7 h-7 rounded-lg bg-[#e0f7fa] text-[#00A8C6] flex items-center justify-center font-bold">
               <Gauge className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white tracking-tight">
-                Pipeline Pressure vs Time
-              </h3>
-              <p className="text-[11px] text-slate-400">
-                Safe Baseline: 3.5 – 4.0 bar
-              </p>
+              <h3 className="text-sm font-bold text-[#063B5C]">Pipeline Pressure History</h3>
+              <p className="text-[11px] text-slate-500">Real-time bar pressure trend (Normal Range: 3.0–4.5 bar)</p>
             </div>
           </div>
+          <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+            bar
+          </span>
+        </div>
 
-          <div className="text-right font-mono">
-            <div className="text-lg font-bold text-sky-300">
-              {currentPressure.toFixed(2)} <span className="text-xs text-slate-400">bar</span>
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="pressureGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#063B5C" stopOpacity={0.4} />
+                  <stop offset="95%" stopColor="#063B5C" stopOpacity={0.0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F7F9" vertical={false} />
+              <XAxis dataKey="timestamp" stroke="#94a3b8" fontSize={10} tickLine={false} />
+              <YAxis domain={[0, 8]} stroke="#94a3b8" fontSize={10} tickLine={false} />
+              <Tooltip content={<CustomTooltip />} />
+              <ReferenceLine y={4.5} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Max (4.5 bar)', fill: '#ef4444', fontSize: 10, position: 'insideTopRight' }} />
+              <ReferenceLine y={3.0} stroke="#43A047" strokeDasharray="3 3" label={{ value: 'Min (3.0 bar)', fill: '#43A047', fontSize: 10, position: 'insideBottomRight' }} />
+              <Area
+                type="monotone"
+                dataKey="pressure"
+                name="Pressure (bar)"
+                stroke="#063B5C"
+                strokeWidth={2.5}
+                fillOpacity={1}
+                fill="url(#pressureGradient)"
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Chart 3: Water Level & Reservoir History Chart */}
+      <div className="bg-white rounded-xl shadow-sm border border-[#DCE8ED] p-5 lg:col-span-2">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-[#e0f7fa] text-[#00A8C6] flex items-center justify-center font-bold">
+              <Droplet className="w-4 h-4" />
             </div>
-            <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
-              currentPressure < 3.0 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' : 'bg-sky-950 text-sky-400'
-            }`}>
-              {currentPressure < 3.0 ? 'LOW PRESSURE' : 'NORMAL HEAD'}
-            </span>
+            <div>
+              <h3 className="text-sm font-bold text-[#063B5C]">Storage Water Level & Consumption Stability</h3>
+              <p className="text-[11px] text-slate-500">Reservoir storage percentage capacity and steady state</p>
+            </div>
           </div>
+          <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+            % Capacity
+          </span>
         </div>
 
         <div className="h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.6} />
-              <XAxis dataKey="timestamp" stroke="#64748b" tick={{ fontSize: 10 }} />
-              <YAxis domain={[1.0, 4.5]} stroke="#64748b" tick={{ fontSize: 10 }} />
+            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="levelGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#43A047" stopOpacity={0.35} />
+                  <stop offset="95%" stopColor="#43A047" stopOpacity={0.0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F7F9" vertical={false} />
+              <XAxis dataKey="timestamp" stroke="#94a3b8" fontSize={10} tickLine={false} />
+              <YAxis domain={[0, 100]} stroke="#94a3b8" fontSize={10} tickLine={false} />
               <Tooltip content={<CustomTooltip />} />
-              
-              {/* Baseline Safe Blue Band */}
-              <ReferenceArea y1={3.5} y2={4.0} fill="#0284c7" fillOpacity={0.08} stroke="#0284c7" strokeOpacity={0.2} strokeDasharray="2 2" />
-
-              <Line
+              <ReferenceLine y={85} stroke="#3b82f6" strokeDasharray="3 3" label={{ value: 'Nominal High (85%)', fill: '#3b82f6', fontSize: 10, position: 'insideTopRight' }} />
+              <ReferenceLine y={60} stroke="#43A047" strokeDasharray="3 3" label={{ value: 'Nominal Low (60%)', fill: '#43A047', fontSize: 10, position: 'insideBottomRight' }} />
+              <Area
                 type="monotone"
-                dataKey="pressure"
-                name="Pressure (bar)"
-                stroke="#0ea5e9"
+                dataKey="water_level"
+                name="Water Level (%)"
+                stroke="#43A047"
                 strokeWidth={2.5}
-                dot={false}
-                activeDot={{ r: 5, fill: '#0ea5e9' }}
+                fillOpacity={1}
+                fill="url(#levelGradient)"
                 isAnimationActive={false}
               />
-              <Line
-                type="monotone"
-                dataKey="zone_b_pressure"
-                name="Zone B Pressure"
-                stroke="#f43f5e"
-                strokeWidth={1.5}
-                strokeDasharray="4 4"
-                dot={false}
-                isAnimationActive={false}
-              />
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
         </div>
       </div>
-
     </div>
   );
 }
