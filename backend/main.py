@@ -1,4 +1,5 @@
 import asyncio
+import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -161,6 +162,8 @@ def ingest_water_data(reading: WaterReadingCreate):
 @app.get("/api/network")
 def get_network_state():
     """Returns digital twin network topology status including all valves, zones, and leak state."""
+    now = time.time()
+    leak_duration = round(now - sim_engine.leak_start_time, 1) if (sim_engine.leak_active and sim_engine.leak_start_time) else 0.0
     return {
         "reservoir": {
             "name": "Main City Reservoir",
@@ -174,9 +177,19 @@ def get_network_state():
         "leak_zone": sim_engine.leak_zone,
         "leak_isolated": sim_engine.leak_isolated,
         "threat_contained": sim_engine.threat_contained,
+        "leak_duration_sec": leak_duration,
+        "estimated_leak_rate": sim_engine.estimated_leak_rate if (sim_engine.leak_active and not sim_engine.leak_isolated) else 0.0,
+        "leak_loss_liters": round(sim_engine.leak_loss_liters, 1),
+        "water_saved_liters": round(sim_engine.water_saved_liters, 1),
         "flow_rate": sim_engine.flow_rate,
         "pressure": sim_engine.pressure
     }
+
+@app.get("/valves")
+@app.get("/api/valves")
+def get_valves():
+    """Returns status and mode of all smart valves."""
+    return {"valves": sim_engine.valves}
 
 @app.post("/valves/{valve_id}/{action}")
 @app.post("/api/valves/{valve_id}/{action}")
@@ -189,6 +202,21 @@ def command_valve_action(valve_id: str, action: str):
     if not res["success"]:
         raise HTTPException(status_code=404, detail=res["message"])
     return res
+
+@app.post("/valves/{valve_id}/open")
+@app.post("/api/valves/{valve_id}/open")
+def open_valve_alias(valve_id: str):
+    return command_valve_action(valve_id, "OPEN")
+
+@app.post("/valves/{valve_id}/close")
+@app.post("/api/valves/{valve_id}/close")
+def close_valve_alias(valve_id: str):
+    return command_valve_action(valve_id, "CLOSED")
+
+@app.post("/valves/{valve_id}/auto")
+@app.post("/api/valves/{valve_id}/auto")
+def auto_valve_alias(valve_id: str):
+    return command_valve_action(valve_id, "AUTO")
 
 # ----------------- 3. ALERTS ENDPOINTS ----------------- #
 
@@ -283,13 +311,17 @@ def get_events():
 # ----------------- 8. DEMONSTRATION & SIMULATION CONTROLS ----------------- #
 
 @app.post("/simulation/normal")
+@app.post("/simulate/normal")
 @app.post("/api/simulation/normal")
+@app.post("/api/simulate/normal")
 def set_normal():
     sim_engine.set_normal()
     return {"status": "ok", "mode": "NORMAL", "message": "Normal baseline data activated (Flow: ~48 L/min, Pressure: ~3.8 bar)."}
 
 @app.post("/simulation/leak")
+@app.post("/simulate/leak")
 @app.post("/api/simulation/leak")
+@app.post("/api/simulate/leak")
 def simulate_leak():
     sim_engine.simulate_leak(flow=95.0, pressure=2.0, level=65.0)
     analysis = agent_engine.analyze(95.0, 2.0, 65.0, leak_active=True, leak_isolated=False)
@@ -310,8 +342,37 @@ def simulate_leak():
         "analysis": analysis
     }
 
+@app.post("/simulation/leak-step/{step}")
+@app.post("/simulate/leak-step/{step}")
+@app.post("/api/simulation/leak-step/{step}")
+def simulate_leak_step_endpoint(step: int):
+    sim_engine.simulate_leak_step(step)
+    analysis = agent_engine.analyze(sim_engine.flow_rate, sim_engine.pressure, sim_engine.reservoir_level, leak_active=True, leak_isolated=False)
+    db.insert_reading(sim_engine.flow_rate, sim_engine.pressure, sim_engine.reservoir_level)
+    alert = None
+    if analysis["is_anomaly"]:
+        alert = db.insert_alert(
+            alert_type=analysis["alert_type"],
+            severity=analysis["severity"],
+            message=analysis["possible_cause"],
+            recommended_action=analysis["recommended_action"],
+            status="ACTIVE"
+        )
+    return {
+        "status": "ok",
+        "mode": "LEAK",
+        "step": step,
+        "flow_rate": sim_engine.flow_rate,
+        "pressure": sim_engine.pressure,
+        "alert": alert,
+        "analysis": analysis
+    }
+
 @app.post("/simulation/abnormal-pressure")
+@app.post("/simulate/high-pressure")
+@app.post("/simulate/abnormal-pressure")
 @app.post("/api/simulation/abnormal-pressure")
+@app.post("/api/simulate/high-pressure")
 def simulate_abnormal_pressure():
     sim_engine.simulate_abnormal_pressure(flow=20.0, pressure=5.6, level=75.0)
     analysis = agent_engine.analyze(20.0, 5.6, 75.0)
@@ -333,7 +394,10 @@ def simulate_abnormal_pressure():
     }
 
 @app.post("/simulation/depletion")
+@app.post("/simulate/tank-low")
+@app.post("/simulate/depletion")
 @app.post("/api/simulation/depletion")
+@app.post("/api/simulate/tank-low")
 def simulate_depletion():
     sim_engine.simulate_depletion(flow=45.0, pressure=3.4, level=22.0)
     analysis = agent_engine.analyze(45.0, 3.4, 22.0)
@@ -376,8 +440,18 @@ def simulate_manual(req: ManualReadingRequest):
         "alert": alert
     }
 
+@app.post("/simulation/speed/{multiplier}")
+@app.post("/api/simulation/speed/{multiplier}")
+def set_sim_speed(multiplier: float):
+    if multiplier not in [1.0, 2.0, 5.0]:
+        raise HTTPException(status_code=400, detail="Speed must be 1.0, 2.0, or 5.0")
+    sim_engine.sim_speed = multiplier
+    return {"status": "ok", "sim_speed": multiplier}
+
 @app.post("/simulation/reset")
+@app.post("/simulate/reset")
 @app.post("/api/simulation/reset")
+@app.post("/api/simulate/reset")
 def reset_all():
     sim_engine.reset()
     db.clear_data()

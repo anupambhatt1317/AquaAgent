@@ -101,6 +101,19 @@ export default function App() {
     }
   };
 
+  const handleSimulateLeakStep = async (step) => {
+    setIsExecuting(true);
+    try {
+      await api.simulateLeakStep(step);
+      setActiveScenario('LEAK');
+      await refreshData();
+    } catch (err) {
+      console.error('Leak step error:', err);
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
   const handleSimulateAbnormalPressure = async () => {
     setIsExecuting(true);
     try {
@@ -229,11 +242,16 @@ export default function App() {
             activeScenario={activeScenario}
             onGenerateNormal={handleGenerateNormal}
             onSimulateLeak={handleSimulateLeak}
+            onSimulateLeakStep={handleSimulateLeakStep}
             onSimulateAbnormalPressure={handleSimulateAbnormalPressure}
             onSimulateDepletion={handleSimulateDepletion}
             onReset={handleReset}
             onSubmitManual={handleManualSubmit}
+            onCommandValve={handleCommandValve}
             isExecuting={isExecuting}
+            isStreaming={isStreaming}
+            onToggleStream={handleToggleStream}
+            valves={network?.valves}
           />
         </div>
 
@@ -326,9 +344,8 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-[#DCE8ED] bg-white py-4 px-6 text-center text-xs text-slate-500 font-medium">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div className="max-w-7xl mx-auto flex items-center justify-center">
           <span>AquaAgent 2.0 • AI-Powered Smart Water Distribution & Conservation System</span>
-          <span className="text-[#00A8C6] font-semibold">FastAPI + React + SQLite Digital Twin</span>
         </div>
       </footer>
 

@@ -13,6 +13,7 @@ class HydraulicSimulation:
         self.water_usage_today = 34200.0 # Liters
         self.water_saved_liters = 1450.0
         self.is_streaming = True
+        self.sim_speed = 1.0 # 1.0x, 2.0x, 5.0x
         self.last_tick_time = time.time()
         
         # Reservoir metrics
@@ -31,6 +32,9 @@ class HydraulicSimulation:
         self.leak_zone = "Zone B"
         self.leak_isolated = False
         self.threat_contained = False
+        self.leak_start_time = None
+        self.leak_loss_liters = 0.0
+        self.estimated_leak_rate = 0.0
 
         # Smart Valves (V1, V2, V3, V4)
         self.valves: Dict[str, Dict[str, Any]] = {
@@ -133,6 +137,8 @@ class HydraulicSimulation:
         self.leak_active = False
         self.leak_isolated = False
         self.threat_contained = False
+        self.leak_start_time = None
+        self.estimated_leak_rate = 0.0
         self.target_reservoir_level = 75.0
         self.target_flow = 48.0
         self.target_pressure = 3.80
@@ -151,12 +157,51 @@ class HydraulicSimulation:
         
         self.add_event("NORMAL_DATA_GENERATED", "NORMAL", "Hydraulic baseline restored: Flow ~48 L/min, Pressure ~3.8 bar, Water Level ~75%.")
 
+    def simulate_leak_step(self, step: int):
+        """Simulates gradual developing anomaly in Zone B (steps 1 to 4)."""
+        self.mode = "LEAK"
+        self.leak_active = True
+        self.leak_zone = "Zone B"
+        self.leak_isolated = False
+        self.threat_contained = False
+        if not self.leak_start_time:
+            self.leak_start_time = time.time()
+            self.leak_loss_liters = 0.0
+
+        if step == 1:
+            self.target_flow = 58.0
+            self.target_pressure = 3.40
+            self.estimated_leak_rate = 10.0
+            self.zones["Zone B"]["status"] = "WARNING"
+            self.add_event("MICRO_LEAK_DEVELOPING", "MEDIUM", "Zone B: Flow anomaly developing (Flow: 58 L/min, Pressure: 3.4 bar).")
+        elif step == 2:
+            self.target_flow = 72.0
+            self.target_pressure = 2.90
+            self.estimated_leak_rate = 24.0
+            self.zones["Zone B"]["status"] = "WARNING"
+            self.add_event("PRESSURE_DEGRADATION", "HIGH", "Zone B: Pressure dropping, flow accelerating (Flow: 72 L/min, Pressure: 2.9 bar).")
+        elif step == 3:
+            self.target_flow = 86.0
+            self.target_pressure = 2.40
+            self.estimated_leak_rate = 38.0
+            self.zones["Zone B"]["status"] = "CRITICAL"
+            self.add_event("BURST_PROPAGATING", "HIGH", "Zone B: Pipe rupture widening. Flow: 86 L/min, Pressure: 2.4 bar.")
+        else: # step >= 4
+            self.target_flow = 95.0
+            self.target_pressure = 2.00
+            self.estimated_leak_rate = 47.0
+            self.zones["Zone B"]["status"] = "CRITICAL"
+            self.add_event("LEAK_SIMULATION_TRIGGERED", "HIGH", "High-flow pipe rupture fully active in Zone B (Flow: 95 L/min, Pressure: 2.0 bar).")
+            self.add_event("ANOMALY_CLASSIFIED", "HIGH", "AquaAgent classified CRITICAL anomaly. Isolation of Valve V3 recommended.")
+
     def simulate_leak(self, flow: float = 95.0, pressure: float = 2.0, level: float = 65.0):
         self.mode = "LEAK"
         self.leak_active = True
         self.leak_zone = "Zone B"
         self.leak_isolated = False
         self.threat_contained = False
+        self.leak_start_time = time.time()
+        self.estimated_leak_rate = 47.0
         self.target_flow = flow
         self.target_pressure = pressure
         self.target_reservoir_level = level
@@ -172,6 +217,8 @@ class HydraulicSimulation:
         self.leak_active = False
         self.leak_isolated = False
         self.threat_contained = False
+        self.leak_start_time = None
+        self.estimated_leak_rate = 0.0
         self.target_flow = flow
         self.target_pressure = pressure
         self.target_reservoir_level = level
@@ -185,6 +232,8 @@ class HydraulicSimulation:
         self.leak_active = False
         self.leak_isolated = False
         self.threat_contained = False
+        self.leak_start_time = None
+        self.estimated_leak_rate = 0.0
         self.target_flow = flow
         self.target_pressure = pressure
         self.target_reservoir_level = level
@@ -210,7 +259,6 @@ class HydraulicSimulation:
             return {"success": False, "message": f"Valve {valve_id} not found"}
         
         valve = self.valves[valve_id]
-        prev_status = valve["status"]
         valve["status"] = action
         if action in ["OPEN", "CLOSED"]:
             valve["mode"] = "MANUAL"
@@ -225,17 +273,19 @@ class HydraulicSimulation:
                 if self.leak_active:
                     self.leak_isolated = True
                     self.threat_contained = True
+                    self.estimated_leak_rate = 0.0
                     self.target_flow = 33.0 # Flow drops because Zone B is closed
                     self.target_pressure = 3.82 # Network pressure stabilizes!
                     self.water_saved_liters += 350.0
-                    self.add_event("VALVE_V3_CLOSED", "SUCCESS", "Operator/AI commanded Valve V3 to CLOSED. Zone B isolated.")
-                    self.add_event("THREAT_CONTAINED", "SUCCESS", "Leakage contained! Network pressure restored across Zone A and Zone C.")
+                    self.add_event("VALVE_V3_CLOSED", "SUCCESS", "Valve V3 set to CLOSED. Zone B successfully isolated.")
+                    self.add_event("THREAT_CONTAINED", "SUCCESS", "Leakage contained! Water loss stopped and pressure restored.")
                 else:
                     self.add_event("VALVE_V3_CLOSED", "INFO", "Valve V3 closed manually. Zone B offline.")
             elif valve["status"] == "OPEN":
                 if self.leak_active:
                     self.leak_isolated = False
                     self.threat_contained = False
+                    self.estimated_leak_rate = 47.0
                     self.zones["Zone B"]["status"] = "CRITICAL"
                     self.target_flow = 95.0
                     self.target_pressure = 2.0
@@ -281,7 +331,7 @@ class HydraulicSimulation:
     def tick(self) -> Dict[str, Any]:
         """Advance physics with realistic sensor noise and inertia."""
         now = time.time()
-        dt = min(3.0, now - self.last_tick_time)
+        dt = min(3.0, now - self.last_tick_time) * self.sim_speed
         self.last_tick_time = now
 
         alpha = 0.45
@@ -306,7 +356,7 @@ class HydraulicSimulation:
                 zb_flow = 0.0
                 zb_pres = 0.0
             elif self.leak_active and not self.leak_isolated:
-                zb_flow = round(62.0 + random.uniform(-0.6, 0.6), 1)
+                zb_flow = round(max(15.0, self.flow_rate - za_flow - zc_flow), 1)
                 zb_pres = round(self.pressure * 0.9, 2)
             else:
                 zb_flow = round(15.0 + random.uniform(-0.3, 0.3), 1)
@@ -336,6 +386,15 @@ class HydraulicSimulation:
         self.total_water_monitored += liters_increment
         self.water_usage_today += liters_increment
 
+        # Calculate leak loss duration & volume
+        leak_duration_sec = 0.0
+        if self.leak_active and self.leak_start_time:
+            if not self.leak_isolated:
+                leak_duration_sec = round(now - self.leak_start_time, 1)
+                self.leak_loss_liters += round((self.estimated_leak_rate / 60.0) * max(0.5, dt), 2)
+            else:
+                leak_duration_sec = round(now - self.leak_start_time, 1)
+
         return {
             "timestamp": datetime.now().strftime("%H:%M:%S"),
             "flow_rate": self.flow_rate,
@@ -348,6 +407,10 @@ class HydraulicSimulation:
             "leak_zone": self.leak_zone,
             "leak_isolated": self.leak_isolated,
             "threat_contained": self.threat_contained,
+            "leak_duration_sec": leak_duration_sec,
+            "estimated_leak_rate": self.estimated_leak_rate if (self.leak_active and not self.leak_isolated) else 0.0,
+            "leak_loss_liters": round(self.leak_loss_liters, 1),
+            "water_saved_liters": round(self.water_saved_liters, 1),
             "mode": self.mode
         }
 

@@ -1,6 +1,17 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export const api = {
+  // Health Check
+  async checkHealth() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/health`);
+      if (!res.ok) return { status: 'offline', database: 'disconnected' };
+      return res.json();
+    } catch {
+      return { status: 'offline', database: 'disconnected' };
+    }
+  },
+
   // 1. Water telemetry
   async getWaterData(limit = 30) {
     const res = await fetch(`${API_BASE_URL}/water-data?limit=${limit}`);
@@ -22,6 +33,12 @@ export const api = {
   async getNetwork() {
     const res = await fetch(`${API_BASE_URL}/network`);
     if (!res.ok) throw new Error('Failed to fetch network state');
+    return res.json();
+  },
+
+  async getValves() {
+    const res = await fetch(`${API_BASE_URL}/valves`);
+    if (!res.ok) throw new Error('Failed to fetch valves');
     return res.json();
   },
 
@@ -119,6 +136,18 @@ export const api = {
   async resetSimulation() {
     const res = await fetch(`${API_BASE_URL}/simulation/reset`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to reset simulation');
+    return res.json();
+  },
+
+  async simulateLeakStep(step) {
+    const res = await fetch(`${API_BASE_URL}/simulation/leak-step/${step}`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to execute leak step');
+    return res.json();
+  },
+
+  async setSimulationSpeed(multiplier) {
+    const res = await fetch(`${API_BASE_URL}/simulation/speed/${multiplier}`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to set simulation speed');
     return res.json();
   },
 
