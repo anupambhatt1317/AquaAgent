@@ -16,6 +16,7 @@ from models.schemas import (
     AlertItem,
     SystemStatusResponse,
     StatisticsResponse,
+    ValveActionRequest,
     ManualReadingRequest,
     ToggleStreamRequest
 )
@@ -29,7 +30,9 @@ async def background_simulation_loop():
                 analysis = agent_engine.analyze(
                     flow_rate=sim_data["flow_rate"],
                     pressure=sim_data["pressure"],
-                    water_level=sim_data["water_level"]
+                    water_level=sim_data["water_level"],
+                    leak_active=sim_engine.leak_active,
+                    leak_isolated=sim_engine.leak_isolated
                 )
                 db.insert_reading(
                     flow_rate=sim_data["flow_rate"],
@@ -90,7 +93,7 @@ def get_water_data(limit: int = Query(30, ge=1, le=100)):
         "timestamp": datetime.now().strftime("%H:%M:%S"),
         "flow_rate": sim_engine.flow_rate,
         "pressure": sim_engine.pressure,
-        "water_level": sim_engine.water_level,
+        "water_level": sim_engine.reservoir_level,
         "normal_flow_range": [40.0, 60.0],
         "normal_pressure_range": [3.0, 4.5],
         "normal_level_range": [60.0, 85.0]
@@ -108,7 +111,9 @@ def ingest_water_data(reading: WaterReadingCreate):
     analysis = agent_engine.analyze(
         flow_rate=reading.flow_rate,
         pressure=reading.pressure,
-        water_level=reading.water_level or 75.0
+        water_level=reading.water_level or 75.0,
+        leak_active=sim_engine.leak_active,
+        leak_isolated=sim_engine.leak_isolated
     )
     saved_reading = db.insert_reading(
         flow_rate=reading.flow_rate,
@@ -150,7 +155,42 @@ def ingest_water_data(reading: WaterReadingCreate):
         "status": analysis["status"]
     }
 
-# ----------------- 2. ALERTS ENDPOINTS ----------------- #
+# ----------------- 2. NETWORK & VALVES ----------------- #
+
+@app.get("/network")
+@app.get("/api/network")
+def get_network_state():
+    """Returns digital twin network topology status including all valves, zones, and leak state."""
+    return {
+        "reservoir": {
+            "name": "Main City Reservoir",
+            "level": sim_engine.reservoir_level,
+            "capacity": sim_engine.reservoir_capacity,
+            "normal_range": [60.0, 85.0]
+        },
+        "valves": sim_engine.valves,
+        "zones": sim_engine.zones,
+        "leak_active": sim_engine.leak_active,
+        "leak_zone": sim_engine.leak_zone,
+        "leak_isolated": sim_engine.leak_isolated,
+        "threat_contained": sim_engine.threat_contained,
+        "flow_rate": sim_engine.flow_rate,
+        "pressure": sim_engine.pressure
+    }
+
+@app.post("/valves/{valve_id}/{action}")
+@app.post("/api/valves/{valve_id}/{action}")
+def command_valve_action(valve_id: str, action: str):
+    """Executes OPEN, CLOSED, or AUTO on a specific valve (V1, V2, V3, V4)."""
+    action_upper = action.upper()
+    if action_upper not in ["OPEN", "CLOSED", "AUTO"]:
+        raise HTTPException(status_code=400, detail="Action must be OPEN, CLOSED, or AUTO")
+    res = sim_engine.command_valve(valve_id.upper(), action_upper)
+    if not res["success"]:
+        raise HTTPException(status_code=404, detail=res["message"])
+    return res
+
+# ----------------- 3. ALERTS ENDPOINTS ----------------- #
 
 @app.get("/alerts")
 @app.get("/api/alerts")
@@ -167,10 +207,10 @@ def resolve_alert_endpoint(alert_id: int):
     success = db.resolve_alert(alert_id)
     if not success:
         raise HTTPException(status_code=404, detail="Alert not found")
-    sim_engine.add_event("ALERT_RESOLVED", "NORMAL", f"Alert #{alert_id} resolved by operator.")
+    sim_engine.add_event("ALERT_RESOLVED", "NORMAL", f"Alert #{alert_id} marked as resolved by operator.")
     return {"status": "ok", "alert_id": alert_id, "resolved": True}
 
-# ----------------- 3. ANOMALY DETECTION / ANALYZE ----------------- #
+# ----------------- 4. ANOMALY DETECTION / ANALYZE ----------------- #
 
 @app.post("/analyze", response_model=AnalyzeResponse)
 @app.post("/api/analyze", response_model=AnalyzeResponse)
@@ -178,11 +218,13 @@ def analyze_telemetry(req: AnalyzeRequest):
     result = agent_engine.analyze(
         flow_rate=req.flow_rate,
         pressure=req.pressure,
-        water_level=req.water_level or 75.0
+        water_level=req.water_level or 75.0,
+        leak_active=sim_engine.leak_active,
+        leak_isolated=sim_engine.leak_isolated
     )
     return result
 
-# ----------------- 4. SYSTEM STATUS OVERVIEW ----------------- #
+# ----------------- 5. SYSTEM STATUS OVERVIEW ----------------- #
 
 @app.get("/system-status", response_model=SystemStatusResponse)
 @app.get("/api/system-status", response_model=SystemStatusResponse)
@@ -191,28 +233,37 @@ def get_system_status():
     analysis = agent_engine.analyze(
         flow_rate=sim_engine.flow_rate,
         pressure=sim_engine.pressure,
-        water_level=sim_engine.water_level
+        water_level=sim_engine.reservoir_level,
+        leak_active=sim_engine.leak_active,
+        leak_isolated=sim_engine.leak_isolated
     )
     stats = db.get_statistics()
     return {
         "app_name": "AquaAgent 2.0",
-        "subtitle": "AI-Powered Smart Water Distribution & Conservation System",
+        "subtitle": "AI-Powered Smart Water Distribution & Conservation",
         "status": analysis["status"],
         "total_water_monitored": round(sim_engine.total_water_monitored, 1),
         "current_flow_rate": round(sim_engine.flow_rate, 1),
         "current_pressure": round(sim_engine.pressure, 2),
-        "current_water_level": round(sim_engine.water_level, 1),
+        "current_water_level": round(sim_engine.reservoir_level, 1),
+        "reservoir_capacity": sim_engine.reservoir_capacity,
         "water_usage": round(sim_engine.water_usage_today, 1),
+        "water_saved_liters": round(sim_engine.water_saved_liters, 1),
         "active_alerts_count": stats["active_alerts_count"],
         "system_mode": sim_engine.mode,
         "timestamp": datetime.now().strftime("%H:%M:%S"),
         "decision_stage": analysis["decision_stage"],
         "possible_cause": analysis["possible_cause"],
         "recommended_action": analysis["recommended_action"],
-        "is_streaming": sim_engine.is_streaming
+        "suggested_valve_action": analysis.get("suggested_valve_action", "NONE"),
+        "is_streaming": sim_engine.is_streaming,
+        "leak_active": sim_engine.leak_active,
+        "leak_zone": sim_engine.leak_zone if sim_engine.leak_active else None,
+        "leak_isolated": sim_engine.leak_isolated,
+        "threat_contained": sim_engine.threat_contained
     }
 
-# ----------------- 5. STATISTICS & METRICS ----------------- #
+# ----------------- 6. STATISTICS & METRICS ----------------- #
 
 @app.get("/statistics", response_model=StatisticsResponse)
 @app.get("/api/statistics", response_model=StatisticsResponse)
@@ -220,7 +271,7 @@ def get_statistics_endpoint():
     stats = db.get_statistics()
     return stats
 
-# ----------------- 6. RECENT EVENTS FEED ----------------- #
+# ----------------- 7. RECENT EVENTS FEED ----------------- #
 
 @app.get("/events")
 @app.get("/api/events")
@@ -229,7 +280,7 @@ def get_events():
         "events": sim_engine.events
     }
 
-# ----------------- 7. DEMONSTRATION & SIMULATION CONTROLS ----------------- #
+# ----------------- 8. DEMONSTRATION & SIMULATION CONTROLS ----------------- #
 
 @app.post("/simulation/normal")
 @app.post("/api/simulation/normal")
@@ -241,7 +292,7 @@ def set_normal():
 @app.post("/api/simulation/leak")
 def simulate_leak():
     sim_engine.simulate_leak(flow=95.0, pressure=2.0, level=65.0)
-    analysis = agent_engine.analyze(95.0, 2.0, 65.0)
+    analysis = agent_engine.analyze(95.0, 2.0, 65.0, leak_active=True, leak_isolated=False)
     db.insert_reading(95.0, 2.0, 65.0)
     alert = db.insert_alert(
         alert_type=analysis["alert_type"],

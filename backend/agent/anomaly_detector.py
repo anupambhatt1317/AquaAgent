@@ -16,7 +16,7 @@ class AquaAgentDecisionEngine:
     NORMAL_LEVEL_MIN = 60.0
     NORMAL_LEVEL_MAX = 85.0
 
-    def analyze(self, flow_rate: float, pressure: float, water_level: float = 75.0) -> Dict[str, Any]:
+    def analyze(self, flow_rate: float, pressure: float, water_level: float = 75.0, leak_active: bool = False, leak_isolated: bool = False) -> Dict[str, Any]:
         """
         Evaluates current flow, pressure, and water level against normal operating ranges.
         Returns anomaly classification, severity, root cause diagnosis, and prioritized recommendation.
@@ -27,16 +27,28 @@ class AquaAgentDecisionEngine:
         alert_type = "NOMINAL_TELEMETRY"
         possible_cause = "All hydraulic metrics within nominal operating baseline."
         recommended_action = "Maintain continuous automated monitoring."
+        suggested_valve_action = "NONE"
         confidence = 0.98
         decision_stage = "MONITOR"
 
+        if leak_isolated:
+            severity = "LOW"
+            status = "NORMAL"
+            alert_type = "BURST_CONTAINED"
+            possible_cause = "Zone B pipe rupture successfully isolated by Valve V3."
+            recommended_action = "Dispatch field crew for physical pipe inspection & repair."
+            suggested_valve_action = "KEEP V3 CLOSED"
+            confidence = 0.99
+            decision_stage = "REPORT"
+
         # Check for Critical Anomaly: High Flow + Low Pressure (Major Pipe Rupture / Leak)
-        if flow_rate > 75.0 or (flow_rate > 60.0 and pressure < 2.9):
+        elif flow_rate > 75.0 or (flow_rate > 60.0 and pressure < 2.9) or leak_active:
             severity = "HIGH"
             status = "CRITICAL"
             alert_type = "PIPE_RUPTURE_LEAK"
-            possible_cause = "Unusual flow-pressure pattern"
-            recommended_action = "Inspect pipeline section for possible leakage."
+            possible_cause = "Unusual flow-pressure pattern (Major pipeline rupture / active leakage detected in Zone B)."
+            recommended_action = "Isolate Zone B and inspect pipeline section."
+            suggested_valve_action = "CLOSE V3"
             anomalies_detected.append("SURGE_FLOW_WITH_PRESSURE_COLLAPSE")
             confidence = 0.96
             decision_stage = "PRIORITIZE"
@@ -48,6 +60,7 @@ class AquaAgentDecisionEngine:
             alert_type = "PRESSURE_SURGE_BLOCKAGE"
             possible_cause = "Abnormal pressure surge / downstream valve obstruction detected."
             recommended_action = "Check downstream control valves and open pressure relief bypass."
+            suggested_valve_action = "THROTTLE V1"
             anomalies_detected.append("HYDRAULIC_PRESSURE_OVERLOAD")
             confidence = 0.93
             decision_stage = "PRIORITIZE"
@@ -59,6 +72,7 @@ class AquaAgentDecisionEngine:
             alert_type = "RESERVOIR_LOW_LEVEL"
             possible_cause = "Reservoir storage critically low / upstream supply interruption."
             recommended_action = "Switch to secondary auxiliary reservoir and throttle non-essential outflow."
+            suggested_valve_action = "THROTTLE V1"
             anomalies_detected.append("WATER_LEVEL_DEPLETION")
             confidence = 0.95
             decision_stage = "ANALYZE"
@@ -70,6 +84,7 @@ class AquaAgentDecisionEngine:
             alert_type = "TANK_OVERFLOW_RISK"
             possible_cause = "Storage tank approaching maximum overflow threshold."
             recommended_action = "Throttle main inlet valve or divert overflow line to auxiliary storage."
+            suggested_valve_action = "THROTTLE V1"
             anomalies_detected.append("HIGH_WATER_LEVEL_WARNING")
             confidence = 0.92
             decision_stage = "ANALYZE"
@@ -81,6 +96,7 @@ class AquaAgentDecisionEngine:
             alert_type = "HIGH_FLOW_WARNING"
             possible_cause = "Flow rate exceeds upper normal threshold (40-60 L/min)."
             recommended_action = "Verify downstream consumption patterns and check for localized leaks."
+            suggested_valve_action = "MONITOR V2, V3, V4"
             anomalies_detected.append("ELEVATED_FLOW_RATE")
             confidence = 0.88
             decision_stage = "DETECT"
@@ -91,18 +107,9 @@ class AquaAgentDecisionEngine:
             alert_type = "LOW_PRESSURE_WARNING"
             possible_cause = "Distribution line pressure below normal operating threshold (3.0-4.5 bar)."
             recommended_action = "Check booster pump output and inspect feeder manifold for pressure loss."
+            suggested_valve_action = "CHECK V1 INLET"
             anomalies_detected.append("DEPRESSED_PRESSURE")
             confidence = 0.89
-            decision_stage = "DETECT"
-
-        elif flow_rate < 38.0:
-            severity = "LOW"
-            status = "WARNING"
-            alert_type = "LOW_FLOW_WARNING"
-            possible_cause = "Flow rate below standard baseline demand."
-            recommended_action = "Monitor supply intake and check for partial pipeline constriction."
-            anomalies_detected.append("REDUCED_CONSUMPTION_FLOW")
-            confidence = 0.85
             decision_stage = "DETECT"
 
         is_anomaly = (severity != "NORMAL")
@@ -114,6 +121,7 @@ class AquaAgentDecisionEngine:
             "alert_type": alert_type,
             "possible_cause": possible_cause,
             "recommended_action": recommended_action,
+            "suggested_valve_action": suggested_valve_action,
             "confidence": confidence,
             "decision_stage": decision_stage if is_anomaly else "MONITOR",
             "anomalies": anomalies_detected,

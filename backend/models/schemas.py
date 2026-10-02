@@ -26,6 +26,7 @@ class AnalyzeResponse(BaseModel):
     alert_type: str
     possible_cause: str
     recommended_action: str
+    suggested_valve_action: Optional[str] = "NONE"
     confidence: float
     decision_stage: str
     anomalies: List[str]
@@ -43,20 +44,27 @@ class AlertItem(BaseModel):
 
 class SystemStatusResponse(BaseModel):
     app_name: str = "AquaAgent 2.0"
-    subtitle: str = "AI-Powered Smart Water Distribution & Conservation System"
+    subtitle: str = "AI-Powered Smart Water Distribution & Conservation"
     status: str # NORMAL, WARNING, CRITICAL
     total_water_monitored: float
     current_flow_rate: float
     current_pressure: float
     current_water_level: float
+    reservoir_capacity: float
     water_usage: float
+    water_saved_liters: float
     active_alerts_count: int
     system_mode: str
     timestamp: str
     decision_stage: str
     possible_cause: str
     recommended_action: str
+    suggested_valve_action: Optional[str] = None
     is_streaming: bool
+    leak_active: bool
+    leak_zone: Optional[str]
+    leak_isolated: bool
+    threat_contained: bool
 
 class StatisticsResponse(BaseModel):
     total_water_monitored_liters: float
@@ -71,6 +79,9 @@ class StatisticsResponse(BaseModel):
     total_alerts_count: int
     water_saved_estimated_liters: float
     efficiency_score: float
+
+class ValveActionRequest(BaseModel):
+    action: str = Field(..., description="OPEN, CLOSED, or AUTO")
 
 class ManualReadingRequest(BaseModel):
     flow_rate: float
